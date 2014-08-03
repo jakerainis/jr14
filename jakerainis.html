@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+<!-- saved from url=(0070)http://jabtunes.com/labs/3d/webgl_geometry_tessellation_exploding.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<title>three.js webgl - geometry - tessellation</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				color: #ffffff;
+				font-family:Monospace;
+				font-size:13px;
+				text-align:center;
+				font-weight: bold;
+
+				background-color: #000000;
+				margin: 0px;
+				/*overflow: hidden;*/
+			}
+			#info {
+				color: #fff;
+				position: absolute;
+				top: 0px; width: 100%;
+				padding: 5px;
+				z-index:100;
+			}
+
+			a { color: red }
+			#container{
+				height:300px;
+				position: fixed;
+			}
+			#container2{
+				height:5000px;
+			}
+
+		</style>
+	</head>
+
+	<body>
+
+		<div id="container"></div>
+		<div id="container2">
+			lorem100000
+		</div>
+
+		<script type="text/javascript" async="" src="three.js webgl - geometry - tessellation_files/ga.js">
+		</script><script src="three.js webgl - geometry - tessellation_files/Three.js"></script>
+		<script src="three.js webgl - geometry - tessellation_files/Three_r49.js"></script>
+
+		<script src="three.js webgl - geometry - tessellation_files/Detector.js"></script>
+		<script src="three.js webgl - geometry - tessellation_files/Stats.js"></script>
+
+		<script src="three.js webgl - geometry - tessellation_files/fette_unz_fraktur_regular.typeface.js"></script>
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+		<script type="x-shader/x-vertex" id="vertexshader">
+
+			uniform float time;
+
+
+			attribute vec3 customColor;
+			attribute vec3 displacement;
+
+			varying vec3 vNormal;
+			varying vec3 vColor;
+
+			float quadraticEaseInOut ( float k ) {
+
+				if ( ( k *= 2.0 ) < 1.0 ) return 0.5 * k * k;
+				return - 0.5 * ( --k * ( k - 2.0 ) - 1.0 );
+
+			}
+
+			void main() {
+
+				vNormal = normal;
+				vColor = customColor;
+
+				float t = abs(time * 2.0 - 1.0);
+				//vec3 newPosition = position + time * displacement;
+				vec3 newPosition = quadraticEaseInOut(t) * (displacement - position) + position;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( newPosition, 1.0 );
+
+			}
+
+		</script>
+
+		<script type="x-shader/x-fragment" id="fragmentshader">
+
+			varying vec3 vNormal;
+			varying vec3 vColor;
+
+			void main() {
+
+				const float ambient = 0.005;
+
+				vec3 light = vec3( 1.0 );
+				light = normalize( light );
+
+				float directional = max( dot( vNormal, light ), 0.0 );
+
+				gl_FragColor = vec4( ( directional + ambient ) * vColor, 1.0 );
+				gl_FragColor.xyz = sqrt( gl_FragColor.xyz );
+
+			}
+
+		</script>
+
+
+		<script>
+
+
+		if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+		var renderer, scene, camera, stats;
+
+		var mesh, uniforms, attributes, text;
+
+		var WIDTH = window.innerWidth;
+		var HEIGHT = window.innerHeight;
+
+		init();
+		animate();
+
+		function init() {
+
+			scene = new THREE.Scene();
+
+			camera = new THREE.PerspectiveCamera( 20, WIDTH / HEIGHT, 1, 10000 );
+			camera.position.z = 350;
+
+			// controls = new THREE.TrackballControls( camera );
+
+			scene.add( camera );
+
+			//
+
+			attributes = {
+
+				displacement: {	type: 'v3', value: [] },
+				customColor:  {	type: 'c', value: [] }
+
+			};
+
+			uniforms = {
+
+				time: { type: "f", value: 0.0 }
+
+			};
+
+			var shaderMaterial = new THREE.ShaderMaterial( {
+
+				uniforms: 		uniforms,
+				attributes:     attributes,
+				color: 0xffffff,
+				vertexShader:   document.getElementById( 'vertexshader' ).textContent,
+				fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
+				shading: 		THREE.FlatShading
+
+			});
+
+			text = 'jake rainis s ';
+
+
+			var geometry = new THREE.TextGeometry( text, {
+
+				size: 40,
+				height: 1,
+				curveSegments: 20,
+
+				font: "fette unz fraktur",
+				weight: "normal",
+				// style: "regular",
+
+				bevelThickness: 2,
+				bevelSize: 1,
+				bevelEnabled: false
+
+			});
+
+			geometry.dynamic = true;
+
+			THREE.GeometryUtils.center( geometry );
+			var bb = geometry.boundingBox;
+
+			var i, n = 6, maxEdgeLength = 4;
+			for ( i = 0; i < n; i ++ ) THREE.GeometryUtils.tessellate( geometry, maxEdgeLength );
+
+			THREE.GeometryUtils.explode( geometry );
+
+			var vertices = geometry.vertices;
+
+			var colors = attributes.customColor.value;
+			var displacement = attributes.displacement.value;
+
+			var h, d, x, y, z;
+			var nv, v = 0;
+
+			var rand = function() {
+				return Math.random() - 0.5;
+			}
+
+			for( var f = 0; f < geometry.faces.length; f ++ ) {
+
+				var face = geometry.faces[ f ];
+
+				if ( face instanceof THREE.Face3 ) {
+
+					nv = 3;
+
+				} else {
+
+					nv = 4;
+
+				}
+
+				h = 0.15 * Math.random();
+				s = 0.7 * Math.random();
+
+				d = 10 * ( 0.5 - Math.random() );
+
+				// x = 2 * ( 0.5 - Math.random() );
+				// y = 2 * ( 0.5 - Math.random() );
+				// z = 2 * ( 0.5 - Math.random() );
+
+				x = rand() * (bb.max.x - bb.min.x);
+				y = rand() * (bb.max.y - bb.min.y) * 4;
+				z = rand() * (bb.max.z - bb.min.z) * 100;
+
+				for ( var i = 0; i < nv; i ++ ) {
+
+					colors[ v ] = new THREE.Color();
+					displacement[ v ] = new THREE.Vector3();
+
+					// colors[ v ].setHSV( h, s, 1 );
+					colors[ v ].setHSV( 255, 55, 255 );
+					colors[ v ].convertGammaToLinear();
+
+					displacement[ v ].set( x, y, z );
+
+					v += 1;
+
+				}
+
+			}
+
+			console.log( "faces", geometry.faces.length );
+
+			mesh = new THREE.Mesh( geometry, shaderMaterial );
+			// mesh.rotation.set( 0.5, 0.5, 0 );
+			mesh.doubleSided = true;
+
+			scene.add( mesh );
+
+			renderer = new THREE.WebGLRenderer( { clearColor: 0x050505, clearAlpha: 0, antialias: true } );
+			renderer.setSize( WIDTH, HEIGHT );
+
+			var container = document.getElementById( 'container' );
+			container.appendChild( renderer.domElement );
+
+			stats = new Stats();
+			stats.domElement.style.position = 'absolute';
+			stats.domElement.style.top = '0px';
+
+			stats.domElement.children[ 0 ].children[ 0 ].style.color = "#555";
+			stats.domElement.children[ 0 ].style.background = "transparent";
+			stats.domElement.children[ 0 ].children[ 1 ].style.display = "none";
+
+			container.appendChild( stats.domElement );
+
+		}
+
+		function animate() {
+
+			requestAnimationFrame( animate );
+
+			render();
+			stats.update();
+
+		}
+
+		function render() {
+
+			var time = Date.now() * 0.001;
+			var interval = 20;
+
+			// uniforms.time.value = time % interval / interval; //1.25 * Math.sin( time * 0.5 );
+			uniforms.time.value = .5;
+			var scrollTop = $(window).scrollTop();
+			uniforms.time.value = (scrollTop * .5 /1000) + .5;
+			console.log(scrollTop, uniforms.time.value);
+
+			// console.log(uniforms.time.value);
+
+			// controls.update();
+			renderer.render( scene, camera );
+
+		}
+
+
+	</script>
+	<script type="text/javascript">
+
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'UA-7549263-1']);
+      _gaq.push(['_trackPageview']);
+
+      (function() {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+
+    </script>
+
+
+
+</body></html>
